@@ -12,8 +12,13 @@ namespace CulturAppChat
 {
     class Program
     {
+        // Instancia de la base de datos (Entity Framework)
         private static CulturAppEntities db = new CulturAppEntities();
+
+        // Lista para almacenar todos los clientes conectados
         private static readonly List<TcpClient> clients = new List<TcpClient>();
+
+        // Objeto para sincronización de acceso a la lista de clientes
         private static readonly object sync = new object();
 
         /// <summary>
@@ -23,14 +28,22 @@ namespace CulturAppChat
         {
             int port = 6400;
             Console.WriteLine($"Iniciando servidor en puerto {port}...");
+
+            // Crea un listener en todas las interfaces de red (0.0.0.0) y en el puerto especificado
             var listener = new TcpListener(IPAddress.Any, port);
             listener.Start();
             Console.WriteLine("Esperando conexiones...");
+
+            // Bucle infinito para aceptar múltiples clientes
             while (true)
             {
                 var client = listener.AcceptTcpClient();
+
+                // Añade el cliente a la lista de forma segura
                 lock (sync) { clients.Add(client); }
                 Console.WriteLine("Cliente conectado.");
+
+                // Maneja la conexión del cliente en un hilo separado
                 Task.Run(() => HandleClientAsync(client));
             }
         }
@@ -47,9 +60,11 @@ namespace CulturAppChat
                 using (var reader = new StreamReader(stream, Encoding.UTF8))
                 using (var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true })
                 {
+                    // Recupera el historial de mensajes desde la base de datos y los envía al cliente
                     var history = db.Menssages
                             .OrderBy(m => m.send_datetime)
                             .ToList();
+
                     foreach (var m in history)
                     {
                         var userName = db.Users.Find(m.user_id)?.name ?? $"Usuario {m.user_id}";
@@ -59,14 +74,16 @@ namespace CulturAppChat
                     }
 
                     string line;
+                    // Lee mensajes entrantes del cliente
                     while ((line = await reader.ReadLineAsync()) != null)
                     {
                         var parts = line.Split(new[] { ':' }, 2);
                         int userId = 0;
-                        int.TryParse(parts[0], out userId);
+                        int.TryParse(parts[0], out userId);  // Extrae el ID del usuario
                         var text = parts.Length > 1 ? parts[1] : string.Empty;
                         var now = DateTime.UtcNow;
 
+                        // Crea un nuevo objeto de mensaje y lo guarda en la base de datos
                         var mensaje = new Menssages
                         {
                             user_id = userId,
@@ -77,8 +94,11 @@ namespace CulturAppChat
                         db.Menssages.Add(mensaje);
                         await db.SaveChangesAsync();
 
-                        var usuario = db.Users.Find(userId)?.name ?? $"Usuario {userId}";
-                        var formatted = $"{usuario}: {text}  {now:yyyy-MM-dd HH:mm}";
+                        var userName = db.Users.Find(userId)?.name ?? $"Usuario {userId}";
+                        var userSurname = db.Users.Find(userId)?.surname ?? $"Usuario {userId}";
+                        var formatted = $"{userName + " " + userSurname}: {text}  {now:yyyy-MM-dd HH:mm}";
+
+                        // Envía el mensaje a todos los clientes conectados
                         BroadcastMessage(formatted);
                     }
                 }
