@@ -16,6 +16,9 @@ namespace CulturAppChat
         private static readonly List<TcpClient> clients = new List<TcpClient>();
         private static readonly object sync = new object();
 
+        /// <summary>
+        /// Método principal que inicia el servidor TCP y acepta conexiones entrantes.
+        /// </summary>
         static void Main(string[] args)
         {
             int port = 6400;
@@ -32,6 +35,10 @@ namespace CulturAppChat
             }
         }
 
+        /// <summary>
+        /// Maneja la comunicación con un cliente de forma asíncrona.
+        /// Recibe y guarda mensajes, y los retransmite a todos los clientes.
+        /// </summary>
         private static async Task HandleClientAsync(TcpClient client)
         {
             try
@@ -88,6 +95,9 @@ namespace CulturAppChat
             }
         }
 
+        /// <summary>
+        /// Envía un mensaje a todos los clientes actualmente conectados.
+        /// </summary>
         private static void BroadcastMessage(string message)
         {
             byte[] data = Encoding.UTF8.GetBytes(message + "\n");
